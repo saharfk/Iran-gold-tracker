@@ -1,0 +1,22 @@
+telegram:
+  bot:
+    username: iran_gold_tracker_bot
+    token: 8984452857:AAF0jhLIoChBRhy2MkL8g2IqEi0VZCdWY_U
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driverClassName: org.h2.Driver
+    username: sahar
+    password: password123
+
+  h2:
+    console:
+      enabled: true
+  application:
+    name: iran-gold-tracker
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        show_sql: true
