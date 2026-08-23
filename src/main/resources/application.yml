@@ -1,13 +1,11 @@
-telegram:
-  bot:
-    username: iran_gold_tracker_bot
-    token: 8984452857:AAF0jhLIoChBRhy2MkL8g2IqEi0VZCdWY_U
 spring:
+  config:
+    import: file:.env[.properties]
   datasource:
-    url: jdbc:h2:mem:testdb
+    url: ${DB_URL}
     driverClassName: org.h2.Driver
-    username: sahar
-    password: password123
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   h2:
     console:
@@ -20,3 +18,11 @@ spring:
     properties:
       hibernate:
         show_sql: true
+brs:
+  api:
+    key: ${BRS_API_KEY}
+    base-url: ${BRS_API_URL}
+
+telegram:
+  bot:
+    token: ${BOT_TOKEN}
