@@ -5,6 +5,7 @@ import com.codogrammer.irangoldtracker.bot.handler.DollarPriceHandler;
 import com.codogrammer.irangoldtracker.bot.handler.GoldPriceHandler;
 import com.codogrammer.irangoldtracker.bot.handler.ManageAlertHandler;
 import com.codogrammer.irangoldtracker.bot.menu.MainMenu;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
@@ -16,6 +17,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 @Component
+@Slf4j
 public class GoldBot implements SpringLongPollingBot {
 
     private final String botToken;
@@ -70,6 +72,7 @@ public class GoldBot implements SpringLongPollingBot {
     private void handleCallback(Update update) {
 
         var callbackQuery = update.getCallbackQuery();
+        Long chatId = callbackQuery.getMessage().getChatId();
 
         switch (callbackQuery.getData()) {
 
@@ -81,6 +84,7 @@ public class GoldBot implements SpringLongPollingBot {
 
             case "MANAGE_ALERT" -> manageAlertHandler.handle(update);
         }
+        continueMainMenu(chatId);
     }
 
     private void handleMessage(Update update) {
@@ -101,6 +105,23 @@ public class GoldBot implements SpringLongPollingBot {
                       "سلام \n" +
                       "\n" +
                       "من می\u200Cتونم قیمت طلا و دلار رو برات بررسی کنم")
+                .replyMarkup(mainMenu.getKeyboard())
+                .build();
+
+        try {
+            telegramClient.execute(message);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void continueMainMenu(Long chatId) {
+
+        SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text("🥇 Iran Gold Tracker\n" +
+                      "\n" +
+                      "دیگه چی میخوای جیگر \n")
                 .replyMarkup(mainMenu.getKeyboard())
                 .build();
 

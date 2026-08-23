@@ -17,7 +17,7 @@ public class MarketPriceService {
         this.restClient = restClient;
     }
 
-    public Object getMarketPrices() {
+    public MarketResponse getMarketPrices() {
 
         return restClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -25,6 +25,6 @@ public class MarketPriceService {
                         .queryParam("key", apiKey)
                         .build())
                 .retrieve()
-                .body(Object.class);
+                .body(MarketResponse.class);
     }
 }
