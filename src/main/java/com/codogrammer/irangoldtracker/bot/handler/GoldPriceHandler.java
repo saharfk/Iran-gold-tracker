@@ -3,7 +3,7 @@ package com.codogrammer.irangoldtracker.bot.handler;
 import com.codogrammer.irangoldtracker.bot.TelegramMessageSender;
 import com.codogrammer.irangoldtracker.dto.MarketItem;
 import com.codogrammer.irangoldtracker.dto.MarketResponse;
-import com.codogrammer.irangoldtracker.service.MarketPriceService;
+import com.codogrammer.irangoldtracker.service.MarketPriceCache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -19,14 +19,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class GoldPriceHandler {
 
-    private final MarketPriceService marketPriceService;
+    private final MarketPriceCache marketPriceCache;
     private final TelegramMessageSender sender;
 
     public GoldPriceHandler(
-            MarketPriceService marketPriceService,
+            MarketPriceCache marketPriceCache,
             TelegramMessageSender sender
     ) {
-        this.marketPriceService = marketPriceService;
+        this.marketPriceCache = marketPriceCache;
         this.sender = sender;
     }
 
@@ -38,7 +38,7 @@ public class GoldPriceHandler {
                 .getChatId();
 
         try {
-            MarketResponse prices = marketPriceService.getMarketPrices();
+            MarketResponse prices = marketPriceCache.getMarketPrices();
             sender.send(chatId, buildMessage(prices));
 
         } catch (Exception e) {

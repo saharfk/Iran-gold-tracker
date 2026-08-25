@@ -23,6 +23,7 @@ public class GoldBot implements SpringLongPollingBot {
     private final String botToken;
     private final TelegramClient telegramClient;
 
+    private final TelegramMessageSender sender;
     private final MainMenu mainMenu;
     private final GoldPriceHandler goldPriceHandler;
     private final DollarPriceHandler dollarPriceHandler;
@@ -31,6 +32,7 @@ public class GoldBot implements SpringLongPollingBot {
 
     public GoldBot(
             @Value("${telegram.bot.token}") String botToken,
+            TelegramMessageSender sender,
             MainMenu mainMenu,
             GoldPriceHandler goldPriceHandler,
             DollarPriceHandler dollarPriceHandler,
@@ -40,6 +42,7 @@ public class GoldBot implements SpringLongPollingBot {
         this.botToken = botToken;
         this.telegramClient = new OkHttpTelegramClient(botToken);
 
+        this.sender = sender;
         this.mainMenu = mainMenu;
         this.goldPriceHandler = goldPriceHandler;
         this.dollarPriceHandler = dollarPriceHandler;
@@ -73,6 +76,8 @@ public class GoldBot implements SpringLongPollingBot {
 
         var callbackQuery = update.getCallbackQuery();
         Long chatId = callbackQuery.getMessage().getChatId();
+
+        sender.send(chatId, "بذار ببینم قیمتا چطورین الان میگم بهت، صبر کن");
 
         switch (callbackQuery.getData()) {
 
