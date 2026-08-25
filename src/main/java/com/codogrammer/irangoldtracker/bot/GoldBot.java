@@ -95,6 +95,14 @@ public class GoldBot implements SpringLongPollingBot {
             return handlePickItem(update, data);
         }
 
+        if (data.startsWith(AddAlertHandler.PICK_MARKET_PREFIX)) {
+            return addAlertHandler.handlePickMarket(update, data.substring(AddAlertHandler.PICK_MARKET_PREFIX.length()));
+        }
+
+        if (data.startsWith(AddAlertHandler.PAGE_PREFIX)) {
+            return handleAlertPage(update, data);
+        }
+
         return switch (data) {
 
             case "GOLD_PRICE" -> showPrices(update, goldPriceHandler::handle);
@@ -106,6 +114,8 @@ public class GoldBot implements SpringLongPollingBot {
             case "ADD_ALERT" -> addAlertHandler.handle(update);
 
             case "MANAGE_ALERT" -> manageAlertHandler.handle(update);
+
+            case AddAlertHandler.BACK_TO_MARKETS -> addAlertHandler.handleBackToMarkets(update);
 
             case AddAlertHandler.CANCEL -> addAlertHandler.handleCancel(update);
 
@@ -145,6 +155,18 @@ public class GoldBot implements SpringLongPollingBot {
             return addAlertHandler.handlePick(update, Integer.parseInt(index));
         } catch (NumberFormatException e) {
             log.warn("Unexpected pick item callback: {}", data);
+            return true;
+        }
+    }
+
+    private boolean handleAlertPage(Update update, String data) {
+
+        String page = data.substring(AddAlertHandler.PAGE_PREFIX.length());
+
+        try {
+            return addAlertHandler.handlePage(update, Integer.parseInt(page));
+        } catch (NumberFormatException e) {
+            log.warn("Unexpected alert page callback: {}", data);
             return true;
         }
     }
