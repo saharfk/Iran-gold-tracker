@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
@@ -19,10 +20,15 @@ public class TelegramMessageSender {
     }
 
     public void send(Long chatId, String text) {
+        send(chatId, text, null);
+    }
+
+    public void send(Long chatId, String text, InlineKeyboardMarkup keyboard) {
 
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
+                .replyMarkup(keyboard)
                 .build();
 
         try {
