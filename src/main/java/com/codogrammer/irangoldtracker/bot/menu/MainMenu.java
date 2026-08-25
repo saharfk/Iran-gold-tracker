@@ -14,12 +14,13 @@ public class MainMenu {
     public InlineKeyboardMarkup getKeyboard() {
 
         InlineKeyboardRow row1 = new InlineKeyboardRow();
-        row1.add(button("💵 قیمت دلار", "DOLLAR_PRICE"));
+        row1.add(button("💵 قیمت ارز", "CURRENCY_PRICE"));
+        row1.add(button("💵 قیمت ارز دیجیتال", "CRYPTO_CURRENCY_PRICE"));
         row1.add(button("🥇 قیمت طلا", "GOLD_PRICE"));
 
         InlineKeyboardRow row2 = new InlineKeyboardRow();
-        row2.add(button("➕ افزودن آلرت", "ADD_ALERT"));
-        row2.add(button("🔔 مدیریت آلرت", "MANAGE_ALERT"));
+        row2.add(button("➕ افزودن هشدار", "ADD_ALERT"));
+        row2.add(button("🔔 مدیریت هشدار", "MANAGE_ALERT"));
 
         List<InlineKeyboardRow> rows = new ArrayList<>();
         rows.add(row1);

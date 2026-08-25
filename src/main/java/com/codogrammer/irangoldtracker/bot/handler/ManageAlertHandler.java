@@ -23,7 +23,7 @@ public class ManageAlertHandler {
                 chatId,
                 """
                         🥇 قیمت طلا
-                        
+                                                
                         فعلاً قیمت واقعی نداریم.
                         به زودی API اضافه می‌کنیم.
                         """

@@ -1,9 +1,6 @@
 package com.codogrammer.irangoldtracker.bot;
 
-import com.codogrammer.irangoldtracker.bot.handler.AddAlertHandler;
-import com.codogrammer.irangoldtracker.bot.handler.DollarPriceHandler;
-import com.codogrammer.irangoldtracker.bot.handler.GoldPriceHandler;
-import com.codogrammer.irangoldtracker.bot.handler.ManageAlertHandler;
+import com.codogrammer.irangoldtracker.bot.handler.*;
 import com.codogrammer.irangoldtracker.bot.menu.MainMenu;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +23,8 @@ public class GoldBot implements SpringLongPollingBot {
     private final TelegramMessageSender sender;
     private final MainMenu mainMenu;
     private final GoldPriceHandler goldPriceHandler;
-    private final DollarPriceHandler dollarPriceHandler;
+    private final CurrencyPriceHandler currencyPriceHandler;
+    private final CryptoCurrencyPriceHandler cryptoCurrencyPriceHandler;
     private final AddAlertHandler addAlertHandler;
     private final ManageAlertHandler manageAlertHandler;
 
@@ -35,7 +33,8 @@ public class GoldBot implements SpringLongPollingBot {
             TelegramMessageSender sender,
             MainMenu mainMenu,
             GoldPriceHandler goldPriceHandler,
-            DollarPriceHandler dollarPriceHandler,
+            CurrencyPriceHandler currencyPriceHandler,
+            CryptoCurrencyPriceHandler cryptoCurrencyPriceHandler,
             AddAlertHandler addAlertHandler,
             ManageAlertHandler manageAlertHandler
     ) {
@@ -45,7 +44,8 @@ public class GoldBot implements SpringLongPollingBot {
         this.sender = sender;
         this.mainMenu = mainMenu;
         this.goldPriceHandler = goldPriceHandler;
-        this.dollarPriceHandler = dollarPriceHandler;
+        this.currencyPriceHandler = currencyPriceHandler;
+        this.cryptoCurrencyPriceHandler = cryptoCurrencyPriceHandler;
         this.addAlertHandler = addAlertHandler;
         this.manageAlertHandler = manageAlertHandler;
     }
@@ -83,7 +83,9 @@ public class GoldBot implements SpringLongPollingBot {
 
             case "GOLD_PRICE" -> goldPriceHandler.handle(update);
 
-            case "DOLLAR_PRICE" -> dollarPriceHandler.handle(update);
+            case "CURRENCY_PRICE" -> currencyPriceHandler.handle(update);
+
+            case "CRYPTO_CURRENCY_PRICE" -> cryptoCurrencyPriceHandler.handle(update);
 
             case "ADD_ALERT" -> addAlertHandler.handle(update);
 
@@ -106,10 +108,10 @@ public class GoldBot implements SpringLongPollingBot {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
                 .text("🥇 Iran Gold Tracker\n" +
-                      "\n" +
-                      "سلام \n" +
-                      "\n" +
-                      "من می\u200Cتونم قیمت طلا و دلار رو برات بررسی کنم")
+                        "\n" +
+                        "سلام \n" +
+                        "\n" +
+                        "من می\u200Cتونم قیمت طلا و ارز رو برات بررسی کنم")
                 .replyMarkup(mainMenu.getKeyboard())
                 .build();
 
@@ -125,8 +127,8 @@ public class GoldBot implements SpringLongPollingBot {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
                 .text("🥇 Iran Gold Tracker\n" +
-                      "\n" +
-                      "دیگه چی میخوای جیگر \n")
+                        "\n" +
+                        "دیگه چی میخوای جیگر \n")
                 .replyMarkup(mainMenu.getKeyboard())
                 .build();
 
