@@ -36,7 +36,7 @@ public class AlertWatcher {
     @Scheduled(initialDelay = CHECK_RATE_MS, fixedRate = CHECK_RATE_MS)
     public void checkAlerts() {
 
-        List<Alert> alerts = alertService.allActiveAlerts();
+        List<Alert> alerts = alertService.allAlerts();
 
         if (alerts.isEmpty()) {
             return;
@@ -86,7 +86,7 @@ public class AlertWatcher {
             return;
         }
 
-        alertService.markDone(alert, current);
+        alertService.delete(alert);
     }
 
     private String describe(Alert alert) {
