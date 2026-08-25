@@ -56,10 +56,11 @@ enabled at `/h2-console`.
 
 The wizard asks one question at a time and only returns to the main menu when the flow ends:
 
-1. **Item name** — e.g. `طلای 18 عیار`, `دلار`, `BTC`. An exact match wins; several near matches
-   are offered as buttons; an unknown name re-asks.
-2. **Floor price** (`کف`) — must be a positive number. Persian/Arabic digits and `,` are accepted.
-3. **Ceiling price** (`سقف`) — must be greater than the floor.
+1. **Market** — buttons: طلا / ارز / ارز دیجیال.
+2. **Item** — buttons listing that market's items with their current price, 8 per page
+   (⬅️ قبلی / بعدی ➡️, 🔙 بازارها to go back). Items you already watch are not listed.
+3. **Floor price** (`کف`) — must be a positive number. Persian/Arabic digits and `,` are accepted.
+4. **Ceiling price** (`سقف`) — must be greater than the floor.
 
 Anything invalid keeps you on the same step. Send `لغو`, `بیخیال`, `cancel`, `/cancel` or tap
 ✖️ لغو to abort. You cannot have two alerts for the same item, and the third alert is the last one.
