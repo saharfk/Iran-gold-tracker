@@ -76,10 +76,16 @@ public class GoldBot implements SpringLongPollingBot {
 
         var callbackQuery = update.getCallbackQuery();
         Long chatId = callbackQuery.getMessage().getChatId();
+        String data = callbackQuery.getData();
+
+        if (data.startsWith(ManageAlertHandler.DELETE_ALERT_PREFIX)) {
+            handleDeleteAlert(update, chatId, data);
+            return;
+        }
 
         sender.send(chatId, "بذار ببینم قیمتا چطورین الان میگم بهت، صبر کن");
 
-        switch (callbackQuery.getData()) {
+        switch (data) {
 
             case "GOLD_PRICE" -> goldPriceHandler.handle(update);
 
@@ -94,12 +100,31 @@ public class GoldBot implements SpringLongPollingBot {
         continueMainMenu(chatId);
     }
 
+    private void handleDeleteAlert(Update update, Long chatId, String data) {
+
+        String alertId = data.substring(ManageAlertHandler.DELETE_ALERT_PREFIX.length());
+
+        try {
+            manageAlertHandler.handleDelete(update, Long.parseLong(alertId));
+        } catch (NumberFormatException e) {
+            log.warn("Unexpected delete alert callback: {}", data);
+        }
+
+        continueMainMenu(chatId);
+    }
+
     private void handleMessage(Update update) {
 
         var message = update.getMessage();
 
         if (message.getText().equals("/start") || message.getText().equals("/menu")) {
             sendMainMenu(message.getChatId());
+            return;
+        }
+
+        if (addAlertHandler.isAwaitingInput(message.getChatId())) {
+            addAlertHandler.handleInput(update);
+            continueMainMenu(message.getChatId());
         }
     }
 
