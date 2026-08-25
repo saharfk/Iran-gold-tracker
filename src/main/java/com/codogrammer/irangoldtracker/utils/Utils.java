@@ -10,6 +10,7 @@ import java.text.DecimalFormatSymbols;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -17,6 +18,7 @@ public class Utils {
 
     private static final String PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
     private static final String ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+    private static final int EXACT_SCORE = 2;
 
     public static String buildMessage(List<MarketItem> gold, MarketCurrencies marketCurrencies) {
 
@@ -105,15 +107,23 @@ public class Utils {
         return items == null ? List.of() : items;
     }
 
-    public static Optional<MarketItemMatch> findItem(MarketResponse prices, String query) {
+    public static List<MarketItemMatch> findItems(MarketResponse prices, String query, int limit) {
 
-        String needle = query.trim().toLowerCase(Locale.ROOT);
+        String needle = normalizeName(query);
 
-        return Arrays.stream(MarketCurrencies.values())
+        if (needle.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Integer, List<MarketItemMatch>> byScore = Arrays.stream(MarketCurrencies.values())
                 .flatMap(market -> itemsOf(prices, market).stream()
-                        .filter(item -> matches(item, needle))
                         .map(item -> new MarketItemMatch(market, item)))
-                .findFirst();
+                .filter(match -> score(match.item(), needle) > 0)
+                .collect(Collectors.groupingBy(match -> score(match.item(), needle)));
+
+        List<MarketItemMatch> result = byScore.getOrDefault(EXACT_SCORE, byScore.getOrDefault(1, List.of()));
+
+        return result.size() > limit ? result.subList(0, limit) : result;
     }
 
     public static Optional<MarketItem> findItem(MarketResponse prices, MarketCurrencies market, String symbol, String name) {
@@ -128,18 +138,35 @@ public class Utils {
                         .findFirst());
     }
 
-    private static boolean matches(MarketItem item, String needle) {
+    private static int score(MarketItem item, String needle) {
 
-        return equalsIgnoreCase(item.symbol(), needle)
-                || equalsIgnoreCase(item.name_en(), needle)
-                || contains(item.name(), needle);
+        if (isExact(item.name(), needle) || isExact(item.symbol(), needle) || isExact(item.name_en(), needle)) {
+            return EXACT_SCORE;
+        }
+
+        if (contains(item.name(), needle) || contains(item.name_en(), needle)) {
+            return 1;
+        }
+
+        return 0;
     }
 
-    private static boolean equalsIgnoreCase(String value, String needle) {
-        return value != null && value.trim().equalsIgnoreCase(needle);
+    private static boolean isExact(String value, String needle) {
+        return value != null && normalizeName(value).equals(needle);
     }
 
     private static boolean contains(String value, String needle) {
-        return value != null && value.trim().toLowerCase(Locale.ROOT).contains(needle);
+        return value != null && normalizeName(value).contains(needle);
+    }
+
+    private static String normalizeName(String value) {
+
+        return normalizeDigits(value)
+                .replace('ي', 'ی')
+                .replace('ك', 'ک')
+                .replace('\u200c', ' ')
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
     }
 }

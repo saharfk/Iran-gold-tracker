@@ -13,6 +13,8 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.util.function.Consumer;
+
 @Component
 @Slf4j
 public class GoldBot implements SpringLongPollingBot {
@@ -78,39 +80,73 @@ public class GoldBot implements SpringLongPollingBot {
         Long chatId = callbackQuery.getMessage().getChatId();
         String data = callbackQuery.getData();
 
+        if (interactionFinished(update, data)) {
+            continueMainMenu(chatId);
+        }
+    }
+
+    private boolean interactionFinished(Update update, String data) {
+
         if (data.startsWith(ManageAlertHandler.DELETE_ALERT_PREFIX)) {
-            handleDeleteAlert(update, chatId, data);
-            return;
+            return handleDeleteAlert(update, data);
         }
 
-        sender.send(chatId, "بذار ببینم قیمتا چطورین الان میگم بهت، صبر کن");
+        if (data.startsWith(AddAlertHandler.PICK_ITEM_PREFIX)) {
+            return handlePickItem(update, data);
+        }
 
-        switch (data) {
+        return switch (data) {
 
-            case "GOLD_PRICE" -> goldPriceHandler.handle(update);
+            case "GOLD_PRICE" -> showPrices(update, goldPriceHandler::handle);
 
-            case "CURRENCY_PRICE" -> currencyPriceHandler.handle(update);
+            case "CURRENCY_PRICE" -> showPrices(update, currencyPriceHandler::handle);
 
-            case "CRYPTO_CURRENCY_PRICE" -> cryptoCurrencyPriceHandler.handle(update);
+            case "CRYPTO_CURRENCY_PRICE" -> showPrices(update, cryptoCurrencyPriceHandler::handle);
 
             case "ADD_ALERT" -> addAlertHandler.handle(update);
 
             case "MANAGE_ALERT" -> manageAlertHandler.handle(update);
-        }
-        continueMainMenu(chatId);
+
+            case AddAlertHandler.CANCEL -> addAlertHandler.handleCancel(update);
+
+            case ManageAlertHandler.DONE -> true;
+
+            default -> {
+                log.warn("Unknown callback: {}", data);
+                yield true;
+            }
+        };
     }
 
-    private void handleDeleteAlert(Update update, Long chatId, String data) {
+    private boolean showPrices(Update update, Consumer<Update> handler) {
+
+        sender.send(update.getCallbackQuery().getMessage().getChatId(), "بذار ببینم قیمتا چطورین الان میگم بهت، صبر کن");
+        handler.accept(update);
+        return true;
+    }
+
+    private boolean handleDeleteAlert(Update update, String data) {
 
         String alertId = data.substring(ManageAlertHandler.DELETE_ALERT_PREFIX.length());
 
         try {
-            manageAlertHandler.handleDelete(update, Long.parseLong(alertId));
+            return manageAlertHandler.handleDelete(update, Long.parseLong(alertId));
         } catch (NumberFormatException e) {
             log.warn("Unexpected delete alert callback: {}", data);
+            return true;
         }
+    }
 
-        continueMainMenu(chatId);
+    private boolean handlePickItem(Update update, String data) {
+
+        String index = data.substring(AddAlertHandler.PICK_ITEM_PREFIX.length());
+
+        try {
+            return addAlertHandler.handlePick(update, Integer.parseInt(index));
+        } catch (NumberFormatException e) {
+            log.warn("Unexpected pick item callback: {}", data);
+            return true;
+        }
     }
 
     private void handleMessage(Update update) {
@@ -122,8 +158,7 @@ public class GoldBot implements SpringLongPollingBot {
             return;
         }
 
-        if (addAlertHandler.isAwaitingInput(message.getChatId())) {
-            addAlertHandler.handleInput(update);
+        if (addAlertHandler.isAwaitingInput(message.getChatId()) && addAlertHandler.handleInput(update)) {
             continueMainMenu(message.getChatId());
         }
     }

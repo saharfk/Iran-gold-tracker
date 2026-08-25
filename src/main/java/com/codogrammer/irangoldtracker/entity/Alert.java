@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -20,7 +21,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
-@Table(name = "alert")
+@Table(
+        name = "alert",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_alert_user_item",
+                columnNames = {"user_id", "market", "item_name"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -49,17 +56,8 @@ public class Alert {
     @Column(nullable = false, precision = 20, scale = 4)
     private BigDecimal toPrice;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private AlertStatus status;
-
     @Column(nullable = false)
     private Instant createdAt;
-
-    private Instant triggeredAt;
-
-    @Column(precision = 20, scale = 4)
-    private BigDecimal triggeredPrice;
 
     public Alert(
             TelegramUser user,
@@ -75,7 +73,6 @@ public class Alert {
         this.symbol = symbol;
         this.fromPrice = fromPrice;
         this.toPrice = toPrice;
-        this.status = AlertStatus.ACTIVE;
         this.createdAt = Instant.now();
     }
 }

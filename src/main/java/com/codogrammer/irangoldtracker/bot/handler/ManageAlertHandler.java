@@ -11,13 +11,16 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ManageAlertHandler {
 
     public static final String DELETE_ALERT_PREFIX = "DELETE_ALERT:";
+    public static final String DONE = "ALERTS_DONE";
 
     private final TelegramMessageSender sender;
     private final AlertService alertService;
@@ -27,24 +30,25 @@ public class ManageAlertHandler {
         this.alertService = alertService;
     }
 
-    public void handle(Update update) {
+    public boolean handle(Update update) {
 
         User from = update.getCallbackQuery().getFrom();
         Long chatId = update.getCallbackQuery().getMessage().getChatId();
 
         alertService.register(from.getId(), chatId, from.getFirstName(), from.getUserName());
 
-        List<Alert> alerts = alertService.activeAlerts(from.getId());
+        List<Alert> alerts = alertService.alerts(from.getId());
 
         if (alerts.isEmpty()) {
-            sender.send(chatId, "🔔 هیچ هشدار فعالی نداری.");
-            return;
+            sender.send(chatId, "🔔 هیچ هشداری نداری.");
+            return true;
         }
 
-        sender.send(chatId, "🔔 هشدارهای فعالت، هرکدوم رو بزنی حذف میشه", keyboard(alerts));
+        sender.send(chatId, "🔔 هشدارهات، هرکدوم رو بزنی حذف میشه", keyboard(alerts));
+        return false;
     }
 
-    public void handleDelete(Update update, Long alertId) {
+    public boolean handleDelete(Update update, Long alertId) {
 
         User from = update.getCallbackQuery().getFrom();
         Long chatId = update.getCallbackQuery().getMessage().getChatId();
@@ -53,10 +57,19 @@ public class ManageAlertHandler {
 
         if (deleted.isEmpty()) {
             sender.send(chatId, "❌ این هشدار رو پیدا نکردم.");
-            return;
+            return true;
         }
 
         sender.send(chatId, "🗑 حذف شد\n" + describe(deleted.get()));
+
+        List<Alert> remaining = alertService.alerts(from.getId());
+
+        if (remaining.isEmpty()) {
+            return true;
+        }
+
+        sender.send(chatId, "🔔 بقیه هشدارهات", keyboard(remaining));
+        return false;
     }
 
     private InlineKeyboardMarkup keyboard(List<Alert> alerts) {
@@ -66,7 +79,12 @@ public class ManageAlertHandler {
                         .text("🗑 " + describe(alert))
                         .callbackData(DELETE_ALERT_PREFIX + alert.getId())
                         .build()))
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        rows.add(new InlineKeyboardRow(InlineKeyboardButton.builder()
+                .text("✅ تموم شد")
+                .callbackData(DONE)
+                .build()));
 
         return new InlineKeyboardMarkup(rows);
     }

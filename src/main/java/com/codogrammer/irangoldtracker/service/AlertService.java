@@ -1,7 +1,6 @@
 package com.codogrammer.irangoldtracker.service;
 
 import com.codogrammer.irangoldtracker.entity.Alert;
-import com.codogrammer.irangoldtracker.entity.AlertStatus;
 import com.codogrammer.irangoldtracker.entity.TelegramUser;
 import com.codogrammer.irangoldtracker.repository.AlertRepository;
 import com.codogrammer.irangoldtracker.repository.TelegramUserRepository;
@@ -10,14 +9,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class AlertService {
 
-    public static final int MAX_ACTIVE_ALERTS = 3;
+    public static final int MAX_ALERTS = 3;
 
     private final TelegramUserRepository userRepository;
     private final AlertRepository alertRepository;
@@ -41,18 +39,28 @@ public class AlertService {
     }
 
     @Transactional(readOnly = true)
-    public List<Alert> activeAlerts(Long userId) {
-        return alertRepository.findByUserIdAndStatusOrderByIdAsc(userId, AlertStatus.ACTIVE);
+    public List<Alert> alerts(Long userId) {
+        return alertRepository.findByUserIdOrderByIdAsc(userId);
     }
 
     @Transactional(readOnly = true)
-    public List<Alert> allActiveAlerts() {
-        return alertRepository.findByStatusOrderByIdAsc(AlertStatus.ACTIVE);
+    public List<Alert> allAlerts() {
+        return alertRepository.findAllByOrderByIdAsc();
+    }
+
+    @Transactional(readOnly = true)
+    public long remainingSlots(Long userId) {
+        return MAX_ALERTS - alertRepository.countByUserId(userId);
     }
 
     @Transactional(readOnly = true)
     public boolean hasReachedLimit(Long userId) {
-        return alertRepository.countByUserIdAndStatus(userId, AlertStatus.ACTIVE) >= MAX_ACTIVE_ALERTS;
+        return remainingSlots(userId) <= 0;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean alreadyWatches(Long userId, MarketCurrencies market, String itemName) {
+        return alertRepository.existsByUserIdAndMarketAndItemNameIgnoreCase(userId, market, itemName);
     }
 
     @Transactional
@@ -76,11 +84,7 @@ public class AlertService {
     }
 
     @Transactional
-    public void markDone(Alert alert, BigDecimal triggeredPrice) {
-
-        alert.setStatus(AlertStatus.DONE);
-        alert.setTriggeredAt(Instant.now());
-        alert.setTriggeredPrice(triggeredPrice);
-        alertRepository.save(alert);
+    public void delete(Alert alert) {
+        alertRepository.deleteById(alert.getId());
     }
 }
