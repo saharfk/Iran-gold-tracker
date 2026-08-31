@@ -101,7 +101,10 @@ public class AddAlertHandler {
                 yield false;
             }
 
-            case FROM -> onFromPrice(chatId, draft, text);
+            case FROM -> {
+                onFromPrice(chatId, draft, text);
+                yield false;
+            }
 
             case TO -> onToPrice(chatId, update.getMessage().getFrom(), draft, text);
         };
@@ -266,7 +269,7 @@ public class AddAlertHandler {
         return false;
     }
 
-    private boolean onFromPrice(Long chatId, Draft draft, String text) {
+    private void onFromPrice(Long chatId, Draft draft, String text) {
 
         Optional<BigDecimal> price = positivePrice(text);
 
@@ -276,7 +279,7 @@ public class AddAlertHandler {
                     "❌ کف قیمت رو نفهمیدم، یه عدد بزرگتر از صفر بفرست.",
                     cancelKeyboard()
             );
-            return false;
+            return;
         }
 
         draft.setFromPrice(price.get());
@@ -284,11 +287,10 @@ public class AddAlertHandler {
 
         sender.send(
                 chatId,
-                "کف شد " + Utils.formatPrice(draft.getFromPrice()) + "\n\nحالا سقف قیمت رو بفرست",
+                "کف شد " + Utils.formatPrice(draft.getFromPrice())
+                        + "\n\nحالا سقف قیمت رو بفرست",
                 cancelKeyboard()
         );
-
-        return false;
     }
 
     private boolean onToPrice(Long chatId, User user, Draft draft, String text) {
@@ -313,10 +315,11 @@ public class AddAlertHandler {
             return false;
         }
 
-        return save(chatId, user, draft, price.get());
+        save(chatId, user, draft, price.get());
+        return true;
     }
 
-    private boolean save(Long chatId, User user, Draft draft, BigDecimal toPrice) {
+    private void save(Long chatId, User user, Draft draft, BigDecimal toPrice) {
 
         TelegramUser telegramUser = alertService.register(
                 user.getId(),
@@ -329,7 +332,7 @@ public class AddAlertHandler {
 
         if (alertService.hasReachedLimit(telegramUser.getId())) {
             sender.send(chatId, "سه هشدار داری، بیشتر از این نمیشه.");
-            return true;
+            return;
         }
 
         if (alertService.alreadyWatches(
@@ -341,7 +344,7 @@ public class AddAlertHandler {
                     chatId,
                     "برای «" + draft.getItem().name() + "» همین الان هشدار داری."
             );
-            return true;
+            return;
         }
 
         Alert alert = alertService.create(
@@ -360,8 +363,6 @@ public class AddAlertHandler {
                         + " : از " + Utils.formatPrice(alert.getFromPrice())
                         + " تا " + Utils.formatPrice(alert.getToPrice())
         );
-
-        return true;
     }
 
     private Optional<MarketCurrencies> market(String name) {
