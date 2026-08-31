@@ -78,12 +78,12 @@ public class AddAlertHandler {
 
     public boolean handle(Update update) {
 
-        User from = update.getCallbackQuery().getFrom();
+        User user = update.getCallbackQuery().getFrom();
         Long chatId = update.getCallbackQuery().getMessage().getChatId();
 
-        alertService.register(from.getId(), chatId, from.getFirstName(), from.getUserName());
+        alertService.register(user.getId(), chatId, user.getFirstName(), user.getUserName());
 
-        long remaining = alertService.remainingSlots(from.getId());
+        long remaining = alertService.remainingSlots(user.getId());
 
         if (remaining <= 0) {
             sender.send(chatId, "سه هشدار داری، بیشتر از این نمیشه. اول یکی رو از مدیریت هشدار حذف کن.");
@@ -204,7 +204,7 @@ public class AddAlertHandler {
 
     public boolean handlePick(Update update, int index) {
 
-        User from = update.getCallbackQuery().getFrom();
+        User user = update.getCallbackQuery().getFrom();
         Long chatId = update.getCallbackQuery().getMessage().getChatId();
 
         Draft draft = drafts.get(chatId);
@@ -213,7 +213,7 @@ public class AddAlertHandler {
             return stale(chatId);
         }
 
-        return selectItem(chatId, from.getId(), draft, draft.items.get(index));
+        return selectItem(chatId, user.getId(), draft, draft.items.get(index));
     }
 
     public boolean handleCancel(Update update) {
@@ -293,7 +293,7 @@ public class AddAlertHandler {
         return false;
     }
 
-    private boolean onToPrice(Long chatId, User from, Draft draft, String text) {
+    private boolean onToPrice(Long chatId, User user, Draft draft, String text) {
 
         Optional<BigDecimal> price = positivePrice(text);
 
@@ -311,27 +311,27 @@ public class AddAlertHandler {
             return false;
         }
 
-        return save(chatId, from, draft, price.get());
+        return save(chatId, user, draft, price.get());
     }
 
-    private boolean save(Long chatId, User from, Draft draft, BigDecimal toPrice) {
+    private boolean save(Long chatId, User user, Draft draft, BigDecimal toPrice) {
 
-        TelegramUser user = alertService.register(from.getId(), chatId, from.getFirstName(), from.getUserName());
+        TelegramUser telegramUser = alertService.register(user.getId(), chatId, user.getFirstName(), user.getUserName());
 
         drafts.remove(chatId);
 
-        if (alertService.hasReachedLimit(user.getId())) {
+        if (alertService.hasReachedLimit(telegramUser.getId())) {
             sender.send(chatId, "سه هشدار داری، بیشتر از این نمیشه.");
             return true;
         }
 
-        if (alertService.alreadyWatches(user.getId(), draft.market, draft.item.name())) {
+        if (alertService.alreadyWatches(telegramUser.getId(), draft.market, draft.item.name())) {
             sender.send(chatId, "برای «" + draft.item.name() + "» همین الان هشدار داری.");
             return true;
         }
 
         Alert alert = alertService.create(
-                user,
+                telegramUser,
                 draft.market,
                 draft.item.name(),
                 draft.item.symbol(),

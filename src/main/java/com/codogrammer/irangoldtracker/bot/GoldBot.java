@@ -1,16 +1,17 @@
 package com.codogrammer.irangoldtracker.bot;
 
-import com.codogrammer.irangoldtracker.bot.handler.*;
+import com.codogrammer.irangoldtracker.bot.handler.AddAlertHandler;
+import com.codogrammer.irangoldtracker.bot.handler.AllPricesHandler;
+import com.codogrammer.irangoldtracker.bot.handler.ManageAlertHandler;
 import com.codogrammer.irangoldtracker.bot.menu.MainMenu;
+import com.codogrammer.irangoldtracker.utils.MarketCurrencies;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.util.function.Consumer;
@@ -20,13 +21,10 @@ import java.util.function.Consumer;
 public class GoldBot implements SpringLongPollingBot {
 
     private final String botToken;
-    private final TelegramClient telegramClient;
 
     private final TelegramMessageSender sender;
     private final MainMenu mainMenu;
-    private final GoldPriceHandler goldPriceHandler;
-    private final CurrencyPriceHandler currencyPriceHandler;
-    private final CryptoCurrencyPriceHandler cryptoCurrencyPriceHandler;
+    private final AllPricesHandler allPricesHandler;
     private final AddAlertHandler addAlertHandler;
     private final ManageAlertHandler manageAlertHandler;
 
@@ -34,20 +32,15 @@ public class GoldBot implements SpringLongPollingBot {
             @Value("${telegram.bot.token}") String botToken,
             TelegramMessageSender sender,
             MainMenu mainMenu,
-            GoldPriceHandler goldPriceHandler,
-            CurrencyPriceHandler currencyPriceHandler,
-            CryptoCurrencyPriceHandler cryptoCurrencyPriceHandler,
+            AllPricesHandler allPricesHandler,
             AddAlertHandler addAlertHandler,
             ManageAlertHandler manageAlertHandler
     ) {
         this.botToken = botToken;
-        this.telegramClient = new OkHttpTelegramClient(botToken);
 
         this.sender = sender;
         this.mainMenu = mainMenu;
-        this.goldPriceHandler = goldPriceHandler;
-        this.currencyPriceHandler = currencyPriceHandler;
-        this.cryptoCurrencyPriceHandler = cryptoCurrencyPriceHandler;
+        this.allPricesHandler = allPricesHandler;
         this.addAlertHandler = addAlertHandler;
         this.manageAlertHandler = manageAlertHandler;
     }
@@ -80,6 +73,8 @@ public class GoldBot implements SpringLongPollingBot {
         Long chatId = callbackQuery.getMessage().getChatId();
         String data = callbackQuery.getData();
 
+        sender.acknowledge(callbackQuery.getId());
+
         if (interactionFinished(update, data)) {
             continueMainMenu(chatId);
         }
@@ -105,11 +100,12 @@ public class GoldBot implements SpringLongPollingBot {
 
         return switch (data) {
 
-            case "GOLD_PRICE" -> showPrices(update, goldPriceHandler::handle);
+            case "GOLD_PRICE" -> showPrices(update, u -> allPricesHandler.handle(u, MarketCurrencies.GOLD));
 
-            case "CURRENCY_PRICE" -> showPrices(update, currencyPriceHandler::handle);
+            case "CURRENCY_PRICE" -> showPrices(update, u -> allPricesHandler.handle(u, MarketCurrencies.CURRENCY));
 
-            case "CRYPTO_CURRENCY_PRICE" -> showPrices(update, cryptoCurrencyPriceHandler::handle);
+            case "CRYPTO_CURRENCY_PRICE" ->
+                    showPrices(update, u -> allPricesHandler.handle(u, MarketCurrencies.CRYPTO_CURRENCY));
 
             case "ADD_ALERT" -> addAlertHandler.handle(update);
 
@@ -186,38 +182,19 @@ public class GoldBot implements SpringLongPollingBot {
     }
 
     private void sendMainMenu(Long chatId) {
+        sender.send(chatId, """
+                🥇 Iran Gold Tracker
 
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text("🥇 Iran Gold Tracker\n" +
-                        "\n" +
-                        "سلام \n" +
-                        "\n" +
-                        "من می\u200Cتونم قیمت طلا و ارز رو برات بررسی کنم")
-                .replyMarkup(mainMenu.getKeyboard())
-                .build();
+                سلام
 
-        try {
-            telegramClient.execute(message);
-        } catch (TelegramApiException e) {
-            throw new RuntimeException(e);
-        }
+                من می\u200Cتونم قیمت طلا و ارز رو برات بررسی کنم""", mainMenu.getKeyboard());
     }
 
     private void continueMainMenu(Long chatId) {
+        sender.send(chatId, """
+                🥇 Iran Gold Tracker
 
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text("🥇 Iran Gold Tracker\n" +
-                        "\n" +
-                        "دیگه چی میخوای جیگر \n")
-                .replyMarkup(mainMenu.getKeyboard())
-                .build();
-
-        try {
-            telegramClient.execute(message);
-        } catch (TelegramApiException e) {
-            throw new RuntimeException(e);
-        }
+                دیگه چی میخوای جیگر
+                """, mainMenu.getKeyboard());
     }
 }

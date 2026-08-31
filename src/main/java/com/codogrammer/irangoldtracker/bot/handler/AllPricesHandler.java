@@ -12,12 +12,12 @@ import static com.codogrammer.irangoldtracker.utils.Utils.buildMessage;
 
 @Service
 @Slf4j
-public class GoldPriceHandler {
+public class AllPricesHandler {
 
     private final MarketPriceCache marketPriceCache;
     private final TelegramMessageSender sender;
 
-    public GoldPriceHandler(
+    public AllPricesHandler(
             MarketPriceCache marketPriceCache,
             TelegramMessageSender sender
     ) {
@@ -25,7 +25,7 @@ public class GoldPriceHandler {
         this.sender = sender;
     }
 
-    public void handle(Update update) {
+    public void handle(Update update, MarketCurrencies marketCurrencies) {
 
         Long chatId = update
                 .getCallbackQuery()
@@ -34,8 +34,15 @@ public class GoldPriceHandler {
 
         try {
             MarketResponse prices = marketPriceCache.getMarketPrices();
-            sender.send(chatId, buildMessage(prices == null ? null : prices.gold(), MarketCurrencies.GOLD));
+            switch (marketCurrencies) {
+                case GOLD ->
+                        sender.send(chatId, buildMessage(prices == null ? null : prices.gold(), MarketCurrencies.GOLD));
+                case CURRENCY ->
+                        sender.send(chatId, buildMessage(prices == null ? null : prices.currency(), MarketCurrencies.CURRENCY));
+                case CRYPTO_CURRENCY ->
+                        sender.send(chatId, buildMessage(prices == null ? null : prices.cryptocurrency(), MarketCurrencies.CRYPTO_CURRENCY));
 
+            }
         } catch (Exception e) {
             log.error("Failed to fetch gold prices for chat {}", chatId, e);
             sender.send(
