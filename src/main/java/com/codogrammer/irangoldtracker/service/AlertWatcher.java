@@ -1,6 +1,5 @@
 package com.codogrammer.irangoldtracker.service;
 
-import com.codogrammer.irangoldtracker.bot.TelegramMessageSender;
 import com.codogrammer.irangoldtracker.dto.MarketItem;
 import com.codogrammer.irangoldtracker.dto.MarketResponse;
 import com.codogrammer.irangoldtracker.entity.Alert;
@@ -21,16 +20,16 @@ public class AlertWatcher {
 
     private final AlertService alertService;
     private final MarketPriceCache marketPriceCache;
-    private final TelegramMessageSender sender;
+    private final AlertNotifier notifier;
 
     public AlertWatcher(
             AlertService alertService,
             MarketPriceCache marketPriceCache,
-            TelegramMessageSender sender
+            AlertNotifier notifier
     ) {
         this.alertService = alertService;
         this.marketPriceCache = marketPriceCache;
-        this.sender = sender;
+        this.notifier = notifier;
     }
 
     @Scheduled(initialDelay = CHECK_RATE_MS, fixedRate = CHECK_RATE_MS)
@@ -73,20 +72,15 @@ public class AlertWatcher {
         }
 
         try {
-            sender.send(
-                    alert.getUser().getChatId(),
-                    "بدو بدو " + alert.getItemName() + " اومده رو " + Utils.formatPrice(current)
-            );
-            sender.send(
-                    alert.getUser().getChatId(),
-                    "این هشدار رو حذف کردم چون قیمتش رو دیدم ✅\n" + describe(alert)
-            );
+            notifier.notifyAndDelete(alert, notification(alert, current));
         } catch (Exception e) {
             log.error("Failed to notify user {} about alert {}", alert.getUser().getId(), alert.getId(), e);
-            return;
         }
+    }
 
-        alertService.delete(alert);
+    private String notification(Alert alert, BigDecimal current) {
+        return "بدو بدو " + alert.getItemName() + " اومده رو " + Utils.formatPrice(current)
+                + "\n\nاین هشدار رو حذف کردم چون قیمتش رو دیدم ✅\n" + describe(alert);
     }
 
     private String describe(Alert alert) {

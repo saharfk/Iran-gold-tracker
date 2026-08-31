@@ -8,7 +8,6 @@ import com.codogrammer.irangoldtracker.utils.MarketCurrencies;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,25 +53,46 @@ public class AlertService {
     }
 
     @Transactional(readOnly = true)
-    public boolean hasReachedLimit(Long userId) {
-        return remainingSlots(userId) <= 0;
-    }
-
-    @Transactional(readOnly = true)
     public boolean alreadyWatches(Long userId, MarketCurrencies market, String itemName) {
         return alertRepository.existsByUserIdAndMarketAndItemNameIgnoreCase(userId, market, itemName);
     }
 
+    /**
+     * Registering the user, enforcing the alert limit, rejecting duplicates and inserting the row all
+     * happen in one transaction, so two updates arriving at the same time cannot both pass the checks.
+     */
     @Transactional
-    public Alert create(
-            TelegramUser user,
-            MarketCurrencies market,
-            String itemName,
-            String symbol,
-            BigDecimal fromPrice,
-            BigDecimal toPrice
-    ) {
-        return alertRepository.save(new Alert(user, market, itemName, symbol, fromPrice, toPrice));
+    public CreateAlertResult create(CreateAlertCommand command) {
+
+        TelegramUser user = register(
+                command.userId(),
+                command.chatId(),
+                command.firstName(),
+                command.username()
+        );
+
+        if (alertRepository.countByUserId(user.getId()) >= MAX_ALERTS) {
+            return new CreateAlertResult.LimitReached(MAX_ALERTS);
+        }
+
+        if (alertRepository.existsByUserIdAndMarketAndItemNameIgnoreCase(
+                user.getId(),
+                command.market(),
+                command.itemName()
+        )) {
+            return new CreateAlertResult.Duplicate(command.itemName());
+        }
+
+        Alert alert = alertRepository.save(new Alert(
+                user,
+                command.market(),
+                command.itemName(),
+                command.symbol(),
+                command.fromPrice(),
+                command.toPrice()
+        ));
+
+        return new CreateAlertResult.Created(alert);
     }
 
     @Transactional

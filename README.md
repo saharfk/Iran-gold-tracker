@@ -41,8 +41,10 @@ DB_PASSWORD=
 ./mvnw spring-boot:run
 ```
 
-Then send `/start` (or `/menu`) to the bot in Telegram to get the main menu. The H2 console is
-enabled at `/h2-console`.
+Then send `/start` (or `/menu`) to the bot in Telegram to get the main menu.
+
+The `dev` profile (`--spring.profiles.active=dev`) turns on the H2 console at `/h2-console` and SQL
+logging; both are off by default.
 
 ## Using the bot
 
@@ -56,7 +58,7 @@ enabled at `/h2-console`.
 
 The wizard asks one question at a time and only returns to the main menu when the flow ends:
 
-1. **Market** — buttons: طلا / ارز / ارز دیجیال.
+1. **Market** — buttons: طلا / ارز / ارز دیجیتال.
 2. **Item** — buttons listing that market's items with their current price, 8 per page
    (⬅️ قبلی / بعدی ➡️, 🔙 بازارها to go back). Items you already watch are not listed.
 3. **Floor price** (`کف`) — must be a positive number. Persian/Arabic digits and `,` are accepted.

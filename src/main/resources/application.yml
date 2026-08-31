@@ -7,9 +7,6 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
-  h2:
-    console:
-      enabled: true
   application:
     name: iran-gold-tracker
   jpa:
@@ -17,9 +14,6 @@ spring:
     defer-datasource-initialization: true
     hibernate:
       ddl-auto: update
-    properties:
-      hibernate:
-        show_sql: true
 brs:
   api:
     key: ${BRS_API_KEY}

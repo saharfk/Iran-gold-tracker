@@ -5,13 +5,9 @@ import com.codogrammer.irangoldtracker.bot.menu.MainMenu;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.util.function.Consumer;
 
@@ -20,7 +16,6 @@ import java.util.function.Consumer;
 public class GoldBot implements SpringLongPollingBot {
 
     private final String botToken;
-    private final TelegramClient telegramClient;
 
     private final TelegramMessageSender sender;
     private final MainMenu mainMenu;
@@ -41,8 +36,6 @@ public class GoldBot implements SpringLongPollingBot {
             ManageAlertHandler manageAlertHandler
     ) {
         this.botToken = botToken;
-        this.telegramClient = new OkHttpTelegramClient(botToken);
-
         this.sender = sender;
         this.mainMenu = mainMenu;
         this.goldPriceHandler = goldPriceHandler;
@@ -79,6 +72,8 @@ public class GoldBot implements SpringLongPollingBot {
         var callbackQuery = update.getCallbackQuery();
         Long chatId = callbackQuery.getMessage().getChatId();
         String data = callbackQuery.getData();
+
+        sender.acknowledge(callbackQuery.getId());
 
         if (interactionFinished(update, data)) {
             continueMainMenu(chatId);
@@ -180,44 +175,33 @@ public class GoldBot implements SpringLongPollingBot {
             return;
         }
 
-        if (addAlertHandler.isAwaitingInput(message.getChatId()) && addAlertHandler.handleInput(update)) {
+        if (addAlertHandler.isAwaitingInput(message.getChatId(), message.getFrom().getId())
+                && addAlertHandler.handleInput(update)) {
             continueMainMenu(message.getChatId());
         }
     }
 
     private void sendMainMenu(Long chatId) {
 
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text("🥇 Iran Gold Tracker\n" +
+        sender.send(
+                chatId,
+                "🥇 Iran Gold Tracker\n" +
                         "\n" +
                         "سلام \n" +
                         "\n" +
-                        "من می\u200Cتونم قیمت طلا و ارز رو برات بررسی کنم")
-                .replyMarkup(mainMenu.getKeyboard())
-                .build();
-
-        try {
-            telegramClient.execute(message);
-        } catch (TelegramApiException e) {
-            throw new RuntimeException(e);
-        }
+                        "من می\u200Cتونم قیمت طلا و ارز رو برات بررسی کنم",
+                mainMenu.getKeyboard()
+        );
     }
 
     private void continueMainMenu(Long chatId) {
 
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text("🥇 Iran Gold Tracker\n" +
+        sender.send(
+                chatId,
+                "🥇 Iran Gold Tracker\n" +
                         "\n" +
-                        "دیگه چی میخوای جیگر \n")
-                .replyMarkup(mainMenu.getKeyboard())
-                .build();
-
-        try {
-            telegramClient.execute(message);
-        } catch (TelegramApiException e) {
-            throw new RuntimeException(e);
-        }
+                        "دیگه چی میخوای جیگر \n",
+                mainMenu.getKeyboard()
+        );
     }
 }

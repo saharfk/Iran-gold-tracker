@@ -1,10 +1,13 @@
 package com.codogrammer.irangoldtracker.bot.handler;
 
 import com.codogrammer.irangoldtracker.bot.TelegramMessageSender;
+import com.codogrammer.irangoldtracker.bot.draft.AlertDraft;
+import com.codogrammer.irangoldtracker.bot.draft.AlertDraftStore;
+import com.codogrammer.irangoldtracker.bot.draft.DraftKey;
 import com.codogrammer.irangoldtracker.dto.MarketItem;
-import com.codogrammer.irangoldtracker.entity.Alert;
-import com.codogrammer.irangoldtracker.entity.TelegramUser;
 import com.codogrammer.irangoldtracker.service.AlertService;
+import com.codogrammer.irangoldtracker.service.CreateAlertCommand;
+import com.codogrammer.irangoldtracker.service.CreateAlertResult;
 import com.codogrammer.irangoldtracker.service.MarketPriceCache;
 import com.codogrammer.irangoldtracker.utils.MarketCurrencies;
 import com.codogrammer.irangoldtracker.utils.Utils;
@@ -20,10 +23,8 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Walks the user through one alert at a time : market buttons, then the item buttons of that
@@ -43,37 +44,25 @@ public class AddAlertHandler {
     private static final int PAGE_SIZE = 8;
     private static final Set<String> CANCEL_WORDS = Set.of("لغو", "بیخیال", "cancel", "/cancel");
 
-    private enum Step {
-        MARKET, ITEM, FROM, TO
-    }
-
-    private static final class Draft {
-
-        private Step step = Step.MARKET;
-        private MarketCurrencies market;
-        private List<MarketItem> items = List.of();
-        private int page;
-        private MarketItem item;
-        private BigDecimal fromPrice;
-    }
-
     private final TelegramMessageSender sender;
     private final AlertService alertService;
     private final MarketPriceCache marketPriceCache;
-    private final Map<Long, Draft> drafts = new ConcurrentHashMap<>();
+    private final AlertDraftStore drafts;
 
     public AddAlertHandler(
             TelegramMessageSender sender,
             AlertService alertService,
-            MarketPriceCache marketPriceCache
+            MarketPriceCache marketPriceCache,
+            AlertDraftStore drafts
     ) {
         this.sender = sender;
         this.alertService = alertService;
         this.marketPriceCache = marketPriceCache;
+        this.drafts = drafts;
     }
 
-    public boolean isAwaitingInput(Long chatId) {
-        return drafts.containsKey(chatId);
+    public boolean isAwaitingInput(Long chatId, Long userId) {
+        return drafts.find(new DraftKey(chatId, userId)).isPresent();
     }
 
     public boolean handle(Update update) {
@@ -90,7 +79,7 @@ public class AddAlertHandler {
             return true;
         }
 
-        drafts.put(chatId, new Draft());
+        drafts.save(key(update), new AlertDraft());
         sendMarkets(chatId, remaining);
 
         return false;
@@ -101,17 +90,19 @@ public class AddAlertHandler {
         Long chatId = update.getMessage().getChatId();
         String text = update.getMessage().getText().trim();
 
-        Draft draft = drafts.get(chatId);
+        Optional<AlertDraft> found = drafts.find(key(update));
 
-        if (draft == null) {
+        if (found.isEmpty()) {
             return true;
         }
 
+        AlertDraft draft = found.get();
+
         if (CANCEL_WORDS.contains(text.toLowerCase())) {
-            return cancel(chatId);
+            return cancel(update);
         }
 
-        return switch (draft.step) {
+        return switch (draft.getStep()) {
 
             case MARKET -> {
                 sender.send(chatId, "از بین همون دکمه‌های بالا یکی رو انتخاب کن.", marketKeyboard());
@@ -123,9 +114,9 @@ public class AddAlertHandler {
                 yield false;
             }
 
-            case FROM -> onFromPrice(chatId, draft, text);
+            case FROM -> onFromPrice(update, draft, text);
 
-            case TO -> onToPrice(chatId, update.getMessage().getFrom(), draft, text);
+            case TO -> onToPrice(update, draft, text);
         };
     }
 
@@ -134,17 +125,17 @@ public class AddAlertHandler {
         Long chatId = update.getCallbackQuery().getMessage().getChatId();
         Long userId = update.getCallbackQuery().getFrom().getId();
 
-        Draft draft = drafts.get(chatId);
+        Optional<AlertDraft> found = drafts.find(key(update));
 
-        if (draft == null) {
-            return stale(chatId);
+        if (found.isEmpty()) {
+            return stale(update);
         }
 
         Optional<MarketCurrencies> market = market(marketName);
 
         if (market.isEmpty()) {
             log.warn("Unknown market in alert callback: {}", marketName);
-            return stale(chatId);
+            return stale(update);
         }
 
         List<MarketItem> items = available(userId, market.get());
@@ -158,10 +149,12 @@ public class AddAlertHandler {
             return false;
         }
 
-        draft.market = market.get();
-        draft.items = items;
-        draft.page = 0;
-        draft.step = Step.ITEM;
+        AlertDraft draft = found.get();
+        draft.setMarket(market.get());
+        draft.setItems(items);
+        draft.setPage(0);
+        draft.setStep(AlertDraft.Step.ITEM);
+        drafts.save(key(update), draft);
 
         sender.send(chatId, market.get().getPersianName() + " رو انتخاب کردی، حالا کدومش؟", itemKeyboard(draft));
         return false;
@@ -170,13 +163,15 @@ public class AddAlertHandler {
     public boolean handlePage(Update update, int page) {
 
         Long chatId = update.getCallbackQuery().getMessage().getChatId();
-        Draft draft = drafts.get(chatId);
+        Optional<AlertDraft> found = drafts.find(key(update));
 
-        if (draft == null || draft.step != Step.ITEM) {
-            return stale(chatId);
+        if (found.isEmpty() || found.get().getStep() != AlertDraft.Step.ITEM) {
+            return stale(update);
         }
 
-        draft.page = Math.max(0, Math.min(page, lastPage(draft)));
+        AlertDraft draft = found.get();
+        draft.setPage(Math.max(0, Math.min(page, lastPage(draft))));
+        drafts.save(key(update), draft);
 
         sender.send(chatId, "کدومش؟", itemKeyboard(draft));
         return false;
@@ -185,18 +180,15 @@ public class AddAlertHandler {
     public boolean handleBackToMarkets(Update update) {
 
         Long chatId = update.getCallbackQuery().getMessage().getChatId();
-        Draft draft = drafts.get(chatId);
+        Optional<AlertDraft> found = drafts.find(key(update));
 
-        if (draft == null) {
-            return stale(chatId);
+        if (found.isEmpty()) {
+            return stale(update);
         }
 
-        draft.market = null;
-        draft.items = List.of();
-        draft.page = 0;
-        draft.item = null;
-        draft.fromPrice = null;
-        draft.step = Step.MARKET;
+        AlertDraft draft = found.get();
+        draft.backToMarkets();
+        drafts.save(key(update), draft);
 
         sendMarkets(chatId, alertService.remainingSlots(update.getCallbackQuery().getFrom().getId()));
         return false;
@@ -205,32 +197,53 @@ public class AddAlertHandler {
     public boolean handlePick(Update update, int index) {
 
         User from = update.getCallbackQuery().getFrom();
-        Long chatId = update.getCallbackQuery().getMessage().getChatId();
+        Optional<AlertDraft> found = drafts.find(key(update));
 
-        Draft draft = drafts.get(chatId);
-
-        if (draft == null || draft.step != Step.ITEM || index < 0 || index >= draft.items.size()) {
-            return stale(chatId);
+        if (found.isEmpty()
+                || found.get().getStep() != AlertDraft.Step.ITEM
+                || index < 0
+                || index >= found.get().getItems().size()) {
+            return stale(update);
         }
 
-        return selectItem(chatId, from.getId(), draft, draft.items.get(index));
+        AlertDraft draft = found.get();
+
+        return selectItem(update, from.getId(), draft, draft.getItems().get(index));
     }
 
     public boolean handleCancel(Update update) {
-        return cancel(update.getCallbackQuery().getMessage().getChatId());
+        return cancel(update);
     }
 
-    private boolean cancel(Long chatId) {
+    private DraftKey key(Update update) {
 
-        drafts.remove(chatId);
-        sender.send(chatId, "باشه، بیخیال هشدار شدم.");
+        if (update.hasCallbackQuery()) {
+            return new DraftKey(
+                    update.getCallbackQuery().getMessage().getChatId(),
+                    update.getCallbackQuery().getFrom().getId()
+            );
+        }
+
+        return new DraftKey(update.getMessage().getChatId(), update.getMessage().getFrom().getId());
+    }
+
+    private Long chatId(Update update) {
+        return update.hasCallbackQuery()
+                ? update.getCallbackQuery().getMessage().getChatId()
+                : update.getMessage().getChatId();
+    }
+
+    private boolean cancel(Update update) {
+
+        drafts.remove(key(update));
+        sender.send(chatId(update), "باشه، بیخیال هشدار شدم.");
         return true;
     }
 
-    private boolean stale(Long chatId) {
+    private boolean stale(Update update) {
 
-        drafts.remove(chatId);
-        sender.send(chatId, "این انتخاب قدیمیه، از اول شروع کن.");
+        drafts.remove(key(update));
+        sender.send(chatId(update), "این انتخاب قدیمیه، از اول شروع کن.");
         return true;
     }
 
@@ -251,16 +264,19 @@ public class AddAlertHandler {
                 .toList();
     }
 
-    private boolean selectItem(Long chatId, Long userId, Draft draft, MarketItem item) {
+    private boolean selectItem(Update update, Long userId, AlertDraft draft, MarketItem item) {
 
-        if (alertService.alreadyWatches(userId, draft.market, item.name())) {
+        Long chatId = chatId(update);
+
+        if (alertService.alreadyWatches(userId, draft.getMarket(), item.name())) {
             sender.send(chatId, "برای «" + item.name() + "» قبلاً هشدار داری. اول از مدیریت هشدار حذفش کن.");
-            drafts.remove(chatId);
+            drafts.remove(key(update));
             return true;
         }
 
-        draft.item = item;
-        draft.step = Step.FROM;
+        draft.setItem(item);
+        draft.setStep(AlertDraft.Step.FROM);
+        drafts.save(key(update), draft);
 
         sender.send(
                 chatId,
@@ -272,8 +288,9 @@ public class AddAlertHandler {
         return false;
     }
 
-    private boolean onFromPrice(Long chatId, Draft draft, String text) {
+    private boolean onFromPrice(Update update, AlertDraft draft, String text) {
 
+        Long chatId = chatId(update);
         Optional<BigDecimal> price = positivePrice(text);
 
         if (price.isEmpty()) {
@@ -281,20 +298,22 @@ public class AddAlertHandler {
             return false;
         }
 
-        draft.fromPrice = price.get();
-        draft.step = Step.TO;
+        draft.setFromPrice(price.get());
+        draft.setStep(AlertDraft.Step.TO);
+        drafts.save(key(update), draft);
 
         sender.send(
                 chatId,
-                "کف شد " + Utils.formatPrice(draft.fromPrice) + "\n\nحالا سقف قیمت رو بفرست",
+                "کف شد " + Utils.formatPrice(draft.getFromPrice()) + "\n\nحالا سقف قیمت رو بفرست",
                 cancelKeyboard()
         );
 
         return false;
     }
 
-    private boolean onToPrice(Long chatId, User from, Draft draft, String text) {
+    private boolean onToPrice(Update update, AlertDraft draft, String text) {
 
+        Long chatId = chatId(update);
         Optional<BigDecimal> price = positivePrice(text);
 
         if (price.isEmpty()) {
@@ -302,52 +321,56 @@ public class AddAlertHandler {
             return false;
         }
 
-        if (price.get().compareTo(draft.fromPrice) <= 0) {
+        if (price.get().compareTo(draft.getFromPrice()) <= 0) {
             sender.send(
                     chatId,
-                    "❌ سقف باید بیشتر از کف (" + Utils.formatPrice(draft.fromPrice) + ") باشه.",
+                    "❌ سقف باید بیشتر از کف (" + Utils.formatPrice(draft.getFromPrice()) + ") باشه.",
                     cancelKeyboard()
             );
             return false;
         }
 
-        return save(chatId, from, draft, price.get());
+        return save(update, draft, price.get());
     }
 
-    private boolean save(Long chatId, User from, Draft draft, BigDecimal toPrice) {
+    private boolean save(Update update, AlertDraft draft, BigDecimal toPrice) {
 
-        TelegramUser user = alertService.register(from.getId(), chatId, from.getFirstName(), from.getUserName());
+        User from = update.getMessage().getFrom();
+        Long chatId = chatId(update);
 
-        drafts.remove(chatId);
+        drafts.remove(key(update));
 
-        if (alertService.hasReachedLimit(user.getId())) {
-            sender.send(chatId, "سه هشدار داری، بیشتر از این نمیشه.");
-            return true;
-        }
-
-        if (alertService.alreadyWatches(user.getId(), draft.market, draft.item.name())) {
-            sender.send(chatId, "برای «" + draft.item.name() + "» همین الان هشدار داری.");
-            return true;
-        }
-
-        Alert alert = alertService.create(
-                user,
-                draft.market,
-                draft.item.name(),
-                draft.item.symbol(),
-                draft.fromPrice,
-                toPrice
-        );
-
-        sender.send(
+        CreateAlertResult result = alertService.create(new CreateAlertCommand(
+                from.getId(),
                 chatId,
-                "✅ هشدار ثبت شد\n"
-                        + alert.getItemName()
-                        + " : از " + Utils.formatPrice(alert.getFromPrice())
-                        + " تا " + Utils.formatPrice(alert.getToPrice())
-        );
+                from.getFirstName(),
+                from.getUserName(),
+                draft.getMarket(),
+                draft.getItem().name(),
+                draft.getItem().symbol(),
+                draft.getFromPrice(),
+                toPrice
+        ));
 
+        sender.send(chatId, describe(result));
         return true;
+    }
+
+    private String describe(CreateAlertResult result) {
+
+        return switch (result) {
+
+            case CreateAlertResult.LimitReached reached ->
+                    "%d هشدار داری، بیشتر از این نمیشه.".formatted(reached.maxAlerts());
+
+            case CreateAlertResult.Duplicate duplicate ->
+                    "برای «" + duplicate.itemName() + "» همین الان هشدار داری.";
+
+            case CreateAlertResult.Created created -> "✅ هشدار ثبت شد\n"
+                    + created.alert().getItemName()
+                    + " : از " + Utils.formatPrice(created.alert().getFromPrice())
+                    + " تا " + Utils.formatPrice(created.alert().getToPrice());
+        };
     }
 
     private Optional<MarketCurrencies> market(String name) {
@@ -365,8 +388,8 @@ public class AddAlertHandler {
         return item.unit() == null ? "" : " " + item.unit();
     }
 
-    private int lastPage(Draft draft) {
-        return Math.max(0, (draft.items.size() - 1) / PAGE_SIZE);
+    private int lastPage(AlertDraft draft) {
+        return Math.max(0, (draft.getItems().size() - 1) / PAGE_SIZE);
     }
 
     private InlineKeyboardMarkup marketKeyboard() {
@@ -382,16 +405,16 @@ public class AddAlertHandler {
         return new InlineKeyboardMarkup(rows);
     }
 
-    private InlineKeyboardMarkup itemKeyboard(Draft draft) {
+    private InlineKeyboardMarkup itemKeyboard(AlertDraft draft) {
 
-        int from = draft.page * PAGE_SIZE;
-        int to = Math.min(from + PAGE_SIZE, draft.items.size());
+        int from = draft.getPage() * PAGE_SIZE;
+        int to = Math.min(from + PAGE_SIZE, draft.getItems().size());
 
         List<InlineKeyboardRow> rows = new ArrayList<>();
 
         for (int index = from; index < to; index++) {
 
-            MarketItem item = draft.items.get(index);
+            MarketItem item = draft.getItems().get(index);
             rows.add(new InlineKeyboardRow(button(
                     item.name() + " (" + Utils.formatPrice(item.price()) + ")",
                     PICK_ITEM_PREFIX + index
@@ -400,12 +423,12 @@ public class AddAlertHandler {
 
         InlineKeyboardRow navigation = new InlineKeyboardRow();
 
-        if (draft.page > 0) {
-            navigation.add(button("⬅️ قبلی", PAGE_PREFIX + (draft.page - 1)));
+        if (draft.getPage() > 0) {
+            navigation.add(button("⬅️ قبلی", PAGE_PREFIX + (draft.getPage() - 1)));
         }
 
-        if (draft.page < lastPage(draft)) {
-            navigation.add(button("بعدی ➡️", PAGE_PREFIX + (draft.page + 1)));
+        if (draft.getPage() < lastPage(draft)) {
+            navigation.add(button("بعدی ➡️", PAGE_PREFIX + (draft.getPage() + 1)));
         }
 
         if (!navigation.isEmpty()) {
