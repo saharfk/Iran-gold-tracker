@@ -16,16 +16,18 @@ public class Utils {
     private static final String PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
     private static final String ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 
-    public static String buildMessage(List<MarketItem> gold, MarketCurrencies marketCurrencies) {
 
-        if (gold == null || gold.isEmpty()) {
-            return "❌ اطلاعات طلا در دسترس نیست.";
+    public static String buildMessage(List<MarketItem> items, MarketCurrencies market) {
+
+        if (items == null || items.isEmpty()) {
+            return "❌ اطلاعات " + market.getPersianName() + " در دسترس نیست.";
         }
 
-        return gold.stream()
+        return items.stream()
                 .map(Utils::formatItem)
                 .collect(Collectors.joining("\n",
-                        "🥇 قیمت " + marketCurrencies.getPersianName() + "\n\n تاریخ : " + JalaliDateTime.now() + "\n\n ",
+                        market.getEmoji() + " قیمت " + market.getPersianName()
+                                + "\n\n تاریخ : " + JalaliDateTime.now() + "\n\n ",
                         ""));
     }
 
